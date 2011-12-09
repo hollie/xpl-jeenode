@@ -1,0 +1,32 @@
+DESCRIPTION
+
+This is the repository that hosts the firmware for a JeeNode. The idea is to program a JeeNode with this firmware and then to connect it to the xpl-jeenode plugin.
+
+That plugin provides xPL connectivity to the JeeNodes.
+
+Next to the firmware for the JeeNode, this repository also contains an emulator that enables code development without hardware.
+
+USAGE
+
+Either burn the firmware in a JeeNode and connect it to your PC or start the emulator.
+
+Install the xpl-perl framework that you can find here:
+
+http://github.com/hollie/xpl-perl
+
+Start the xpl-jeenode with the following command:
+
+  xpl-jeenode --verbose --device /dev/ttyUSBO
+
+or for the emulator
+
+  xpl-jeenode --verbose --device localhost:2501
+
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2011 by Lieven Hollevoet
+
+This code is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8.7 or,
+at your option, any later version of Perl 5 you may have available.
