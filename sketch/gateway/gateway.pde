@@ -4,6 +4,9 @@
 
 // this version adds flash memory support, 2009-11-19
 
+// Modified to simplify the output format so that it is compatible with the xpl_jeenode 
+// plugin for the xpl plugwise framework
+
 #include <Ports.h>
 #include <RF12.h>
 #include <util/crc16.h>
