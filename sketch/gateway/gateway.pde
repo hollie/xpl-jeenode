@@ -5,7 +5,7 @@
 // this version adds flash memory support, 2009-11-19
 
 // Modified to simplify the output format so that it is compatible with the xpl_jeenode 
-// plugin for the xpl plugwise framework
+// plugin for the xpl plugwise framework by Lieven Hollevoet.
 
 #include <Ports.h>
 #include <RF12.h>
@@ -110,8 +110,14 @@ typedef struct {
     byte humi  :7;  // humidity: 0..100
     int temp   :10; // temperature: -500..+500 (tenths)
     byte lobat :1;  // supply voltage dropped under 3.1V: 0..1
-} Payload;
-Payload room_report;
+} Payload_room;
+Payload_room room_report;
+
+typedef struct {
+    byte buttons;   // Button status
+    byte lobat :1;  // supply voltage dropped under 3.1V: 0..1
+} Payload_button;
+Payload_button btn_report;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -225,7 +231,7 @@ static void handleInput (char c) {
 
 void setup() {
     Serial.begin(57600);
-    Serial.print("\n[RF12demo.8]");
+    Serial.print("\n[xplgateway.1]");
 
     if (rf12_config()) {
         config.nodeId = 0x01; //eeprom_read_byte(RF12_EEPROM_ADDR);
@@ -282,7 +288,7 @@ void loop() {
         }
         
         if ((rf12_hdr & 0x1F) == 25) {
-           room_report = *(Payload*) rf12_data;
+           room_report = *(Payload_room*) rf12_data;
            Serial.print("ROOM25 ");
            Serial.print(room_report.light, DEC);
            Serial.print(' ');
@@ -295,6 +301,15 @@ void loop() {
            Serial.print(room_report.lobat, DEC);
            Serial.print('\n');
         } 
+        if ((rf12_hdr & 0x1F) == 13) {
+          btn_report = *(Payload_button*) rf12_data;
+          Serial.print("BTN13 ");
+          Serial.print(btn_report.buttons, DEC);
+          Serial.print(' ');
+          Serial.print(btn_report.lobat, DEC);
+          Serial.print('\n');
+          
+        }
     }
 
     if (cmd && rf12_canSend()) {
