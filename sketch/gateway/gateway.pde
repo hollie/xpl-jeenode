@@ -308,7 +308,7 @@ void loop() {
           btn_report = *(Payload_button*) rf12_data;
           Serial.print("BTN2 ");
           if (ack_required) {
-            Serial.print("alert ");
+            Serial.print("action ");
           } else {
             Serial.print("status ");
           }
