@@ -231,7 +231,7 @@ static void handleInput (char c) {
 
 void setup() {
     Serial.begin(57600);
-    Serial.print("\n[xplgateway.1]");
+    Serial.print("\n[xplgateway.2]");
 
     if (rf12_config()) {
         config.nodeId = 0x01; //eeprom_read_byte(RF12_EEPROM_ADDR);
@@ -250,6 +250,8 @@ void setup() {
 }
 
 void loop() {
+    byte ack_required = 0;
+    
     if (Serial.available())
         handleInput(Serial.read());
 
@@ -282,6 +284,7 @@ void loop() {
             if (RF12_WANTS_ACK && (config.nodeId & COLLECT) == 0) {
                 //Serial.println(" -> ack");
                 rf12_sendStart(RF12_ACK_REPLY, 0, 0);
+                ack_required = 1;
             }
             
             activityLed(0);
@@ -301,9 +304,14 @@ void loop() {
            Serial.print(room_report.lobat, DEC);
            Serial.print('\n');
         } 
-        if ((rf12_hdr & 0x1F) == 13) {
+        if ((rf12_hdr & 0x1F) == 2) {
           btn_report = *(Payload_button*) rf12_data;
-          Serial.print("BTN13 ");
+          Serial.print("BTN2 ");
+          if (ack_required) {
+            Serial.print("alert ");
+          } else {
+            Serial.print("status ");
+          }
           Serial.print(btn_report.buttons, DEC);
           Serial.print(' ');
           Serial.print(btn_report.lobat, DEC);
