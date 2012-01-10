@@ -5,18 +5,21 @@
 
 #include <Ports.h>
 #include <RF12.h>
+#include <avr/sleep.h>
 
 #define RETRY_PERIOD    10  // how soon to retry if ACK didn't come in
 #define RETRY_LIMIT     5   // maximum number of times to retry
 #define ACK_TIME        10  // number of milliseconds to wait for an ack
 
 #define SERIAL 1
+#define DEBUG 1
 
 // set the sync mode to 2 if the fuses are still the Arduino default
 // mode 3 (full powerdown) can only be used with 258 CK startup fuses
 #define RADIO_SYNC_MODE 2
 
-static byte myNodeID;  
+static byte myNodeID = 2;  
+static byte myGroupID = 3;
 
 // This defines the structure of the packets which get sent out by wireless:
 
@@ -28,39 +31,53 @@ struct {
 BlinkPlug blink (2); // Blink plug on port 2
 MilliTimer everySecond;
 
+byte btn_state = 0;
+
+// has to be defined because we're using the watchdog for low-power waiting
+ISR(WDT_vect) { Sleepy::watchdogEvent(); }
+
 void loop () {
     byte event = blink.buttonCheck();
     switch (event) {
         
     case BlinkPlug::ON1:
+#ifdef SERIAL
         Serial.println("  Button 1 pressed"); 
+#endif
+        payload.buttons |= 0x01;
         break;
     
     case BlinkPlug::OFF1:
+#ifdef SERIAL
         Serial.println("  Button 1 released"); 
+#endif
+        payload.buttons &= 0xFE;
         break;
     
     case BlinkPlug::ON2:
+#ifdef SERIAL
         Serial.println("  Button 2 pressed"); 
+#endif
+        payload.buttons |= 0x02;
         break;
     
     case BlinkPlug::OFF2:
+#ifdef SERIAL
         Serial.println("  Button 2 released"); 
+#endif
+        payload.buttons &= 0xFD;
         break;
     
     default:
-        // report these other events only once a second
-        if (everySecond.poll(1000)) {
-            switch (event) {
-                case BlinkPlug::SOME_ON:
-                    Serial.println("SOME button is currently pressed");
-                    break;
-                case BlinkPlug::ALL_OFF:
-                    Serial.println("NO buttons are currently pressed");
-                    break;
-            }
-        }
+        break;
     }
+    
+    // If the button state changed, transmit it
+    if (btn_state != payload.buttons) {
+      doTrigger();
+      btn_state = payload.buttons;
+    }
+
 }
 
 // wait a few milliseconds for proper ACK to me, return true if indeed received
@@ -71,13 +88,14 @@ static byte waitForAck() {
                 // see http://talk.jeelabs.net/topic/811#post-4712
                 rf12_hdr == (RF12_HDR_DST | RF12_HDR_CTL | myNodeID))
             return 1;
-        //set_sleep_mode(SLEEP_MODE_IDLE);
-        //sleep_mode();
+        set_sleep_mode(SLEEP_MODE_IDLE);
+        sleep_mode();
     }
     return 0;
 }
 
 // periodic report, i.e. send out a packet and optionally report on serial port
+// We can use this for heartbeat messages if required
 static void doReport() {
     rf12_sleep(RF12_WAKEUP);
     while (!rf12_canSend())
@@ -98,8 +116,8 @@ static void doReport() {
 // send packet and wait for ack when there is a motion trigger
 static void doTrigger() {
     #if DEBUG
-        Serial.print("PIR ");
-        Serial.print((int) payload.moved);
+        Serial.print("Buttonpress, going for TX ");
+        Serial.print((int) payload.buttons);
         delay(2);
     #endif
 
@@ -132,13 +150,9 @@ void setup () {
     #if SERIAL || DEBUG
         Serial.begin(57600);
         Serial.print("\n[buttonNode.1]");
-        myNodeID = rf12_config();
-    #else
-        myNodeID = rf12_config(0); // don't report info on the serial port
     #endif
-    
-    rf12_sleep(RF12_SLEEP); // power down
-    
+    rf12_initialize(myNodeID, RF12_868MHZ, myGroupID); // Init with node id 2, 868 MHz, fixed group 3    
+    rf12_sleep(RF12_SLEEP); // power down RF module
 }
 
 
