@@ -33,6 +33,14 @@ MilliTimer everySecond;
 
 byte btn_state = 0;
 
+#define LED_PIN 9
+static void activityLed (byte on) {
+#ifdef LED_PIN
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, !on);
+#endif
+}
+
 // has to be defined because we're using the watchdog for low-power waiting
 ISR(WDT_vect) { Sleepy::watchdogEvent(); }
 
@@ -69,6 +77,13 @@ void loop () {
         break;
     
     default:
+        // Send a heartbeat every 30 seconds
+        if (everySecond.poll(30000)) {
+#ifdef SERIAL
+        Serial.println("Sending status report"); 
+#endif
+           doReport();
+        }
         break;
     }
     
@@ -94,13 +109,20 @@ static byte waitForAck() {
     return 0;
 }
 
-// periodic report, i.e. send out a packet and optionally report on serial port
-// We can use this for heartbeat messages if required
+// Periodic report, i.e. send out a packet and optionally report on serial port
+// We use this for telling the base the node is still alive
+// The gateway will know this is a status message because it doesn't need an ACK
 static void doReport() {
     rf12_sleep(RF12_WAKEUP);
+    
+    // Update battery status
+    payload.lobat = rf12_lowbat();
+
     while (!rf12_canSend())
         rf12_recvDone();
+    activityLed(1); 
     rf12_sendStart(0, &payload, sizeof payload, RADIO_SYNC_MODE);
+    activityLed(0); 
     rf12_sleep(RF12_SLEEP);
 
     #if SERIAL
@@ -121,11 +143,17 @@ static void doTrigger() {
         delay(2);
     #endif
 
+    // Update battery status
+    payload.lobat = rf12_lowbat();
+
+    // Send with ack
     for (byte i = 0; i < RETRY_LIMIT; ++i) {
         rf12_sleep(RF12_WAKEUP);
         while (!rf12_canSend())
             rf12_recvDone();
+        activityLed(1); 
         rf12_sendStart(RF12_HDR_ACK, &payload, sizeof payload, RADIO_SYNC_MODE);
+        activityLed(0); 
         byte acked = waitForAck();
         rf12_sleep(RF12_SLEEP);
 
