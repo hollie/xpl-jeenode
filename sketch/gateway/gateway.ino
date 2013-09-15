@@ -12,6 +12,7 @@
 #include <util/parity.h>
 #include <avr/eeprom.h>
 #include <avr/pgmspace.h>
+#include <util/atomic.h>
 
 // ATtiny's only support outbound serial @ 38400 baud, and no DataFlash logging
 
@@ -26,6 +27,20 @@
 #define LED_PIN   9 // activity LED, comment out to disable
 
 #endif
+
+#define LDR_PORT    4   // defined if LDR is connected to a port's AIO pin
+#define PIR_PORT    4   // defined if PIR is connected to a port's DIO pin
+
+#if LDR_PORT
+    Port ldr (LDR_PORT);
+#endif
+
+#if PIR_PORT
+    #define PIR_PULLUP      1   // set to one to pull-up the PIR input pin
+    #define PIR_INVERTED    0   // 0 or 1, to match PIR reporting high or low
+    Port pir (PIR_PORT);
+#endif
+
 
 #define COLLECT 0x20 // collect mode, i.e. pass incoming without sending acks
 
@@ -748,7 +763,11 @@ void setup() {
 
   df_initialize();
   
-  showHelp();
+  //showHelp();
+#ifdef PIR_PORT
+  pir.digiWrite(PIR_PULLUP);
+#endif
+  
 }
 
 typedef struct {
@@ -766,6 +785,8 @@ typedef struct {
 } Payload_button;
 Payload_button btn_report;
 
+byte pir_laststate;
+
 void loop() {
   if (Serial.available())
     handleInput(Serial.read());
@@ -776,11 +797,8 @@ void loop() {
       //Serial.print("OK");
     }
     else {
-      if (quiet)
-        return;
-      Serial.print(" ?");
-      if (n > 20) // print at most 20 bytes if crc is wrong
-        n = 20;
+      // Invalid CRC, don't want to know...
+      return;
     }
     if (useHex)
       Serial.print('X');
@@ -811,7 +829,7 @@ void loop() {
       activityLed(0);
 
 	// Report the sensor readings in a format that is compatible with the xpl-jeenode software running on the host.
-	if ((rf12_hdr & 0x1F) >= 20 && (rf12_hdr & 0x1F) <= 31) {
+	if ((rf12_hdr & 0x1F) >= 20 && (rf12_hdr & 0x1F) < 31) {
         room_report = *(Payload_room*) rf12_data;
         Serial.print("ROOM");
         Serial.print(rf12_hdr & 0x1F, DEC);
@@ -861,4 +879,27 @@ void loop() {
 
     activityLed(0);
   }
+  
+  // Support a PIR detector on the gateway too
+  #if PIR_PORT
+    // If it triggered
+    byte pir_triggered = pir.digiRead()^PIR_INVERTED;
+ 
+    if (pir_triggered != pir_laststate) {
+      pir_laststate = pir_triggered;
+      // Measure light level
+      ldr.digiWrite2(1);  // enable AIO pull-up
+      byte light = ~ ldr.anaRead() >> 2;
+      ldr.digiWrite2(0);  // disable pull-up to reduce current draw
+      
+      // Report  
+      Serial.print("ROOM");
+      Serial.print(config.nodeId & 0x1F, DEC);
+      Serial.print(" ");
+      Serial.print(light, DEC);
+      Serial.print(" ");
+      Serial.print(pir_triggered, DEC);
+      Serial.print(" 0 0 0\n"); 
+    }
+  #endif
 }
