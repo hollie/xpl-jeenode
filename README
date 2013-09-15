@@ -22,6 +22,7 @@ or for the emulator
 
   xpl-jeenode --verbose --device localhost:2501
 
+Note: to compile the Arduino sketches you'll need to install the JeeLibs libray that you can get [here](https://github.com/jcw/jeelib).
 
 COPYRIGHT AND LICENCE
 
