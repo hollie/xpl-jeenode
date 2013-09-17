@@ -1,11 +1,33 @@
-/// @dir xpl_jeenode_gateway
-/// Configure some values in EEPROM for easy config of the RF12 later on.
-// 2009-05-06 <jc@wippler.nl> http://opensource.org/licenses/mit-license.php
-
-// this version adds flash memory support, 2009-11-19
-
-// Modified to simplify the output format so that it is compatible with the xpl_jeenode 
-// plugin for the xpl plugwise framework by Lieven Hollevoet.
+/* This is the sketch that runs on the JeeNode that is connected to the host computer.
+ * The idea is that this node interfaces between the RF packets and the xpl-jeenodes
+ * Perl script that maps those packets onto xPL packets and vice versa.
+ * Based on the RF12demo sketch of jcw.
+ *
+ * This gateway should preferably use node ID 31 so it received all packets from the group
+ *
+ * Optionally, a roomboard can be fit on the gateway JeeNode for motion/light/temperature
+ * data gathering. The status of the node will be send whenever the motion detector is triggered.
+ *
+ * Currently supports talking to IO nodes and Room nodes.
+ * 
+ * On the serial side, the format is simple, all numbers are in decimal:
+ * IO node: IO<id> X Y Z
+ *   id = node ID in decimal
+ *   X  = T (trigger) or S (status) packet was received. Trigger is when an action was detected on the Io node, status is a packet that is regularly sent to tell the node is still alive
+ *   Y  = input status
+ *   Z  = battery low indicator (1/0)
+ *
+ * ROOM node: ROOM<id> V W X Y Z
+ *   id = node ID in decimal
+ *   V  = lightlevel
+ *   W  = motion or no motion (1/0)
+ *   X  = humidity
+ *   Y  = temperature
+ *   Z  = battery low indicator (1/0)
+ * 
+ * By Lieven Hollevoet
+ */
+ 
 
 #include <JeeLib.h>
 #include <util/crc16.h>
@@ -15,6 +37,10 @@
 #include <util/atomic.h>
 
 // ATtiny's only support outbound serial @ 38400 baud, and no DataFlash logging
+
+// Various types of remote nodes will be mapped on different address ranges so that we know how to decode the packets coming from the nodes
+#define LOWEST_IO_NODE 1
+#define LOWEST_ROOM_NODE 20
 
 #if defined(__AVR_ATtiny84__) ||defined(__AVR_ATtiny44__)
 #define SERIAL_BAUD 38400
@@ -792,6 +818,7 @@ void loop() {
     handleInput(Serial.read());
 
   if (rf12_recvDone()) {
+    byte need_ack = 0;
     byte n = rf12_len;
     if (rf12_crc == 0) {
       //Serial.print("OK");
@@ -824,12 +851,13 @@ void loop() {
       if (RF12_WANTS_ACK && (config.nodeId & COLLECT) == 0) {
         //Serial.println(" -> ack");
         rf12_sendStart(RF12_ACK_REPLY, 0, 0);
+        need_ack = 1;
       }
       
       activityLed(0);
 
 	// Report the sensor readings in a format that is compatible with the xpl-jeenode software running on the host.
-	if ((rf12_hdr & 0x1F) >= 20 && (rf12_hdr & 0x1F) < 31) {
+	if ((rf12_hdr & 0x1F) >= LOWEST_ROOM_NODE && (rf12_hdr & 0x1F) < 31) {
         room_report = *(Payload_room*) rf12_data;
         Serial.print("ROOM");
         Serial.print(rf12_hdr & 0x1F, DEC);
@@ -845,11 +873,13 @@ void loop() {
         Serial.print(room_report.lobat, DEC);
         Serial.print('\n');
     } 
-    if ((rf12_hdr & 0x1F) == 2) {
+    if ((rf12_hdr & 0x1F) >= LOWEST_IO_NODE && (rf12_hdr & 0x1F) < LOWEST_ROOM_NODE) {
         btn_report = *(Payload_button*) rf12_data;
-        Serial.print("BTN2 ");
-        if (RF12_WANTS_ACK && (config.nodeId & COLLECT) == 0) {
-          Serial.print("action ");
+        Serial.print("BTN");
+        Serial.print(rf12_hdr & 0x1F, DEC);
+        if (need_ack) {
+          // It was a trigger message, report it
+          Serial.print(" action ");
         } else {
           Serial.print("status ");
         }
