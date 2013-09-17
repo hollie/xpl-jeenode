@@ -13,8 +13,12 @@
  * On the serial side, the format is simple, all numbers are in decimal:
  * IO node: IO<id> X Y Z
  *   id = node ID in decimal
- *   X  = T (trigger) or S (status) packet was received. Trigger is when an action was detected on the Io node, status is a packet that is regularly sent to tell the node is still alive
- *   Y  = input status
+ *   X  = T (trigger) or S (status) packet was received. Trigger is when an action was detected on the IO node, status is a packet that is regularly sent to tell the node is still alive
+ *  In case of T message: 
+ *   Y  = input that changed
+ *   Z  = new state (1/0)
+ *  In case of S message
+ *   Y  = input status (every bit corresponds to an IO)
  *   Z  = battery low indicator (1/0)
  *
  * ROOM node: ROOM<id> V W X Y Z
@@ -875,13 +879,14 @@ void loop() {
     } 
     if ((rf12_hdr & 0x1F) >= LOWEST_IO_NODE && (rf12_hdr & 0x1F) < LOWEST_ROOM_NODE) {
         btn_report = *(Payload_button*) rf12_data;
-        Serial.print("BTN");
+        Serial.print("IO");
         Serial.print(rf12_hdr & 0x1F, DEC);
         if (need_ack) {
           // It was a trigger message, report it
-          Serial.print(" action ");
+          Serial.print(" T ");
         } else {
-          Serial.print("status ");
+          // Otherwise it was a status message
+          Serial.print(" S ");
         }
         Serial.print(btn_report.buttons, DEC);
         Serial.print(' ');

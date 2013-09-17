@@ -45,6 +45,7 @@ BlinkPlug blink (1); // Blink plug on port 2
 MilliTimer everySecond;
 
 byte btn_state = 0;
+byte btn_state_prev = 0;
 
 #define LED_PIN 9
 static void activityLed (byte on) {
@@ -65,33 +66,41 @@ void loop () {
 #ifdef SERIAL
         Serial.println("  Button 1 pressed"); 
 #endif
-        payload.buttons |= 0x01;
+        payload.buttons = 1;
+        payload.lobat   = 1; // See protocol description in gateway, lobat is re-used here as button status
+        btn_state = 1;
         break;
     
     case BlinkPlug::OFF1:
 #ifdef SERIAL
         Serial.println("  Button 1 released"); 
 #endif
-        payload.buttons &= 0xFE;
+        payload.buttons = 1;
+        payload.lobat   = 0;
+        btn_state = 2;
         break;
     
     case BlinkPlug::ON2:
 #ifdef SERIAL
         Serial.println("  Button 2 pressed"); 
 #endif
-        payload.buttons |= 0x02;
+        payload.buttons = 2;
+        payload.lobat   = 1;
+        btn_state = 3;
         break;
     
     case BlinkPlug::OFF2:
 #ifdef SERIAL
         Serial.println("  Button 2 released"); 
 #endif
-        payload.buttons &= 0xFD;
+        payload.buttons = 2;
+        payload.lobat   = 0;
+        btn_state = 4;
         break;
     
     default:
-        // Send a heartbeat every 30 seconds
-        if (everySecond.poll(30000)) {
+        // Send a heartbeat every 60 seconds
+        if (everySecond.poll(60000)) {
 #ifdef SERIAL
         Serial.println("Sending status report"); 
 #endif
@@ -101,9 +110,9 @@ void loop () {
     }
     
     // If the button state changed, transmit it
-    if (btn_state != payload.buttons) {
+    if (btn_state != btn_state_prev) {
+      btn_state_prev = btn_state;
       doTrigger();
-      btn_state = payload.buttons;
     }
 
 }
@@ -157,7 +166,7 @@ static void doTrigger() {
     #endif
 
     // Update battery status
-    payload.lobat = rf12_lowbat();
+    //payload.lobat = rf12_lowbat();
 
     // Send with ack
     for (byte i = 0; i < RETRY_LIMIT; ++i) {
