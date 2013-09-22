@@ -18,7 +18,7 @@
  *   Y  = input that changed
  *   Z  = new state (1/0)
  *  In case of S message
- *   Y  = input status (every bit corresponds to an IO)
+ *   Y  = input status (1 = button is pressed, 0 = no buttons pressed)
  *   Z  = battery low indicator (1/0)
  *
  * ROOM node: ROOM<id> V W X Y Z
